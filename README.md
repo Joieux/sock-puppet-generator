@@ -82,4 +82,4 @@ Never use this tool for impersonation, fraud, or violations of Terms of Service.
 ---
 
 ## 📫 Contact
-For collaboration or licensing questions: [Your Name] · [Your GitHub] · [Optional Email]
+For collaboration or licensing questions: [Joieux] · [Your GitHub] 
