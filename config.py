@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env if present
+# Automatically load environment variables from a .env file in the project root (if present)
 load_dotenv()
 
 CONFIG = {
