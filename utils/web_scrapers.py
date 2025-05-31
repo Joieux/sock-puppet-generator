@@ -1,50 +1,46 @@
 import requests
-from bs4 import BeautifulSoup
-from config import CONFIG
-import random
 
-def get_fake_identity(proxy=True):
-    """
-    Scrapes a fake identity from ElfQrin for sock puppet generation.
+def get_fake_identity(proxy=False):
+    proxies = {
+        'http': 'socks5h://127.0.0.1:9050',
+        'https': 'socks5h://127.0.0.1:9050',
+    } if proxy else None
 
-    Args:
-        proxy (bool): Whether to use the Tor proxy. Default is True.
-
-    Returns:
-        dict: A dictionary containing fake name, dob, location, interests, and source.
-    """
-    proxies = (
-        {"http": CONFIG["tor_socks_proxy"], "https": CONFIG["tor_socks_proxy"]}
-        if proxy and CONFIG.get("use_tor_proxy", False)
-        else None
-    )
-    headers = {"User-Agent": CONFIG["user_agent"]}
-    url = "https://www.elfqrin.com/fake-identities-eu"
+    headers = {
+        'User-Agent': 'Mozilla/5.0'
+    }
 
     try:
-        response = requests.get(url, headers=headers, proxies=proxies, timeout=CONFIG["timeout"])
+        print("Trying elfqrin.com...")
+        response = requests.get(
+            'https://www.elfqrin.com/fake-identities-eu',
+            headers=headers,
+            proxies=proxies,
+            timeout=10
+        )
         response.raise_for_status()
+        # 🟡 You'll still need to parse the HTML if elfqrin works.
+        return {"source": "elfqrin", "raw_html": response.text}
+
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch fake identity: {e}")
+        print(f"elfqrin.com failed: {e}")
+        print("Falling back to randomuser.me...")
 
-    soup = BeautifulSoup(response.content, "html.parser")
+        try:
+            response = requests.get("https://randomuser.me/api/", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            user = data['results'][0]
+            return {
+                "source": "randomuser",
+                "name": f"{user['name']['first']} {user['name']['last']}",
+                "email": user['email'],
+                "username": user['login']['username'],
+                "password": user['login']['password'],
+                "address": f"{user['location']['street']['number']} {user['location']['street']['name']}, {user['location']['city']}, {user['location']['country']}",
+                "phone": user['phone'],
+                "dob": user['dob']['date']
+            }
 
-    # Try to extract the name robustly
-    name_tag = soup.find("h4")
-    name = name_tag.text.strip() if name_tag else "John Doe"
-
-    # You might want to parse location and dob from the page if you want more realism
-    # For now, keep the fixed Amsterdam, NL and generate a plausible DoB
-    location = "Amsterdam, NL"
-    dob = f"19{random.randint(70, 99)}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}"
-
-    interests_pool = ["OSINT", "crypto", "infosec", "coding", "anonymity", "privacy", "journalism", "travel", "sports"]
-    interests = random.sample(interests_pool, 3)
-
-    return {
-        "name": name,
-        "dob": dob,
-        "location": location,
-        "interests": interests,
-        "source": "ElfQrin"
-    }
+        except Exception as e2:
+            raise RuntimeError(f"Both identity sources failed: {e2}")
