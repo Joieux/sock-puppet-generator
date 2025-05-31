@@ -1,43 +1,91 @@
-# sockpuppet_agent/agents/puppet_creator.py
 import requests
-import random
+from io import BytesIO
+from typing import Optional, Dict, Any
+
 from utils.web_scrapers import get_fake_identity
 from email.fastmail_api import create_fastmail_alias
 from config import CONFIG
-from io import BytesIO
 
 
-def get_face_image():
+def get_face_image() -> Optional[BytesIO]:
+    """
+    Fetches a random face image from thispersondoesnotexist.com using optional Tor proxy.
+    Returns:
+        BytesIO: Image data in memory, or None if the request fails.
+    """
     url = "https://thispersondoesnotexist.com/image"
-    proxies = {"http": CONFIG["tor_socks_proxy"], "https": CONFIG["tor_socks_proxy"]} if CONFIG["use_tor_proxy"] else None
+    proxies = {"http": CONFIG["tor_socks_proxy"], "https": CONFIG["tor_socks_proxy"]} if CONFIG.get("use_tor_proxy") else None
     headers = {"User-Agent": CONFIG["user_agent"]}
-    r = requests.get(url, headers=headers, proxies=proxies, timeout=CONFIG["timeout"])
-    return BytesIO(r.content)
+    try:
+        r = requests.get(url, headers=headers, proxies=proxies, timeout=CONFIG["timeout"])
+        r.raise_for_status()
+        return BytesIO(r.content)
+    except requests.RequestException as e:
+        # Use logging in production
+        print(f"Failed to get face image: {e}")
+        return None
 
 
-def generate_bio(identity):
-    if CONFIG["use_local_llm"]:
-        prompt = f"Generate a brief bio for a person named {identity['name']} living in {identity['location']}. Interests: {identity['interests']}"
-        r = requests.post(CONFIG["local_llm_endpoint"], json={"prompt": prompt})
-        return r.text.strip()
+def generate_bio(identity: Dict[str, Any]) -> str:
+    """
+    Generates a brief bio for the given identity using either a local LLM or OpenAI.
+    Returns:
+        str: The generated bio or a fallback message if generation fails.
+    """
+    prompt = (
+        f"Generate a brief bio for a person named {identity['name']} "
+        f"living in {identity['location']}. Interests: {', '.join(identity['interests'])}"
+    )
+    if CONFIG.get("use_local_llm"):
+        try:
+            r = requests.post(CONFIG["local_llm_endpoint"], json={"prompt": prompt})
+            r.raise_for_status()
+            return r.text.strip()
+        except requests.RequestException as e:
+            print(f"Local LLM error: {e}")
+            return "Bio unavailable."
     else:
-        import openai
-        openai.api_key = CONFIG["openai_api_key"]
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a persona generation assistant."},
-                {"role": "user", "content": f"Create a bio for someone named {identity['name']} who likes {', '.join(identity['interests'])}."}
-            ]
-        )
-        return response.choices[0].message.content
+        try:
+            import openai
+            openai.api_key = CONFIG["openai_api_key"]
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a persona generation assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"OpenAI error: {e}")
+            return "Bio unavailable."
 
 
-def generate_sock_puppet(use_openai=True, use_local_llm=True, use_proxy=True):
+def generate_sock_puppet(use_proxy: bool = True) -> Optional[Dict[str, Any]]:
+    """
+    Generates a complete sock puppet profile with fake identity, email, face image, and bio.
+    Returns:
+        dict: Full profile data, or None if any step fails.
+    """
     identity = get_fake_identity(proxy=use_proxy)
+    if not identity:
+        print("Failed to generate fake identity.")
+        return None
+
     image_data = get_face_image()
-    email = create_fastmail_alias(identity['name'])
+    if not image_data:
+        print("Failed to fetch face image.")
+        return None
+
+    email = create_fastmail_alias(identity["name"])
+    if not email:
+        print("Failed to generate email alias.")
+        return None
+
     bio = generate_bio(identity)
+    if not bio or bio == "Bio unavailable.":
+        print("Bio generation failed.")
+        return None
 
     return {
         "name": identity["name"],
@@ -49,7 +97,7 @@ def generate_sock_puppet(use_openai=True, use_local_llm=True, use_proxy=True):
         "bio": bio,
         "source": {
             "face": "ThisPersonDoesNotExist",
-            "identity": identity["source"],
+            "identity": identity.get("source", "unknown"),
             "email": "Fastmail"
         }
     }
