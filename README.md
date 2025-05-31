@@ -114,4 +114,4 @@ Never use this tool for impersonation, fraud, or violations of Terms of Service.
 ## 📫 Contact
 
 For questions, improvements, or collaborations:
-- GitHub: [Joieux]
+- GitHub:(https://github.com/Joieux)
