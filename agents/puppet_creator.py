@@ -61,16 +61,23 @@ def generate_bio(identity: Dict[str, Any]) -> str:
             return "Bio unavailable."
 
 
-def generate_sock_puppet(use_proxy: bool = True) -> Optional[Dict[str, Any]]:
-    """
-    Generates a complete sock puppet profile with fake identity, email, face image, and bio.
-    Returns:
-        dict: Full profile data, or None if any step fails.
-    """
-    identity = get_fake_identity(proxy=use_proxy)
-    if not identity:
-        print("Failed to generate fake identity.")
-        return None
+def generate_sock_puppet():
+    try:
+        print("🔍 Generating fake identity...")
+        identity = get_fake_identity(proxy=False)
+        print("✅ Identity generated:", identity)
+
+        # You can add more puppet logic here if needed
+        puppet = {
+            "identity": identity,
+            "status": "created"
+        }
+
+        return puppet
+
+    except Exception as e:
+        print("❌ Error during puppet generation:", e)
+        raise  # Re-raise so Streamlit can catch it and show the error
 
     image_data = get_face_image()
     if not image_data:
