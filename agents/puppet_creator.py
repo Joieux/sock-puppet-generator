@@ -3,7 +3,7 @@ from io import BytesIO
 from typing import Optional, Dict, Any
 
 from utils.web_scrapers import get_fake_identity
-from email.fastmail_api import create_fastmail_alias
+from mail_utils.fastmail_api import create_fastmail_alias
 from config import CONFIG
 
 
