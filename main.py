@@ -1,4 +1,3 @@
-# sockpuppet_agent/main.py
 from agents.puppet_creator import generate_sock_puppet
 
 if __name__ == "__main__":
