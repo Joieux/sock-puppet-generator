@@ -114,5 +114,4 @@ Never use this tool for impersonation, fraud, or violations of Terms of Service.
 ## 📫 Contact
 
 For questions, improvements, or collaborations:
-- GitHub: [YourUsername]
-- Email: [YourEmail@example.com]
+- GitHub: [Joieux]
