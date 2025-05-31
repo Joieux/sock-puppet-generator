@@ -3,3 +3,4 @@ beautifulsoup4
 openai
 stem
 streamlit
+requests[socks]
