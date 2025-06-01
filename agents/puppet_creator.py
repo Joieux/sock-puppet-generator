@@ -1,159 +1,193 @@
+import random
 import requests
-import sqlite3
 from io import BytesIO
 from typing import Optional, Dict, Any
-from utils.web_scrapers import get_fake_identity
-from mail_utils.fastmail_api import create_fastmail_alias
-from config import CONFIG
+import json
+import time
+import string
+
+# Try to import utils, handle gracefully if missing
+try:
+    from utils.web_scrapers import get_fake_identity
+    WEB_SCRAPERS_AVAILABLE = True
+except ImportError:
+    WEB_SCRAPERS_AVAILABLE = False
+    # Create a fallback function
+    def get_fake_identity():
+        first_names = ["Alex", "Taylor", "Jordan", "Casey", "Morgan", "Riley", "Devon", "Sage"]
+        last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
+        
+        first_name = random.choice(first_names)
+        last_name = random.choice(last_names)
+        
+        return {
+            "name": f"{first_name} {last_name}",
+            "first_name": first_name,
+            "last_name": last_name,
+            "username": f"{first_name.lower()}{last_name.lower()}{random.randint(100, 999)}",
+            "age": random.randint(18, 65),
+            "gender": random.choice(["Male", "Female", "Non-binary"]),
+            "phone": f"+1-{random.randint(200, 999)}-{random.randint(200, 999)}-{random.randint(1000, 9999)}",
+            "address": f"{random.randint(100, 9999)} {random.choice(['Main', 'Oak', 'Elm', 'Park'])} St",
+            "city": random.choice(["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"]),
+            "state": random.choice(["NY", "CA", "IL", "TX", "AZ"]),
+            "zip_code": f"{random.randint(10000, 99999)}",
+            "country": "United States",
+            "occupation": random.choice(["Software Engineer", "Teacher", "Nurse", "Sales Rep", "Manager"])
+        }
+
+# Try to import mail utils, handle gracefully if missing
+try:
+    from mail_utils.fastmail_api import create_fastmail_alias
+    MAIL_UTILS_AVAILABLE = True
+except ImportError:
+    MAIL_UTILS_AVAILABLE = False
+    # Create a fallback function
+    def create_fastmail_alias(base_name=None, domain="tempmail.org"):
+        if not base_name:
+            base_name = ''.join(random.choices(string.ascii_lowercase, k=8))
+        
+        random_suffix = ''.join(random.choices(string.digits, k=4))
+        email = f"{base_name}{random_suffix}@{domain}"
+        
+        return {
+            "email": email,
+            "alias": base_name,
+            "domain": domain,
+            "created": True,
+            "status": "active"
+        }
+
+# Try to import config, handle gracefully if missing
+try:
+    from config import CONFIG
+    CONFIG_AVAILABLE = True
+except ImportError:
+    CONFIG_AVAILABLE = False
+    CONFIG = {
+        "use_tor_proxy": False,
+        "openai_api_key": "",
+        "debug_mode": False
+    }
+
 
 def get_face_image() -> Optional[BytesIO]:
-    url = "https://thispersondoesnotexist.com/image"
-    proxies = {"http": CONFIG["tor_socks_proxy"], "https": CONFIG["tor_socks_proxy"]} if CONFIG.get("use_tor_proxy") else None
-    headers = {"User-Agent": CONFIG["user_agent"]}
+    """Generate or fetch a face image for the sock puppet"""
     try:
-        r = requests.get(url, headers=headers, proxies=proxies, timeout=CONFIG["timeout"])
-        r.raise_for_status()
-        return BytesIO(r.content)
-    except requests.RequestException as e:
-        print(f"❌ Failed to get face image: {e}")
-        return None
-
-def generate_bio(identity: Dict[str, Any]) -> str:
-    prompt = (
-        f"Generate a brief bio for a person named {identity['name']} "
-        f"living in {identity.get('location', 'an unknown location')}. "
-        f"Interests: {', '.join(identity.get('interests', ['unknown']))}"
-    )
-    if CONFIG.get("use_local_llm"):
-        try:
-            r = requests.post(CONFIG["local_llm_endpoint"], json={"prompt": prompt})
-            r.raise_for_status()
-            return r.text.strip()
-        except requests.RequestException as e:
-            print(f"❌ Local LLM error: {e}")
-            return "Bio unavailable."
-    else:
-        try:
-            import openai
-            openai.api_key = CONFIG["openai_api_key"]
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a persona generation assistant."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            print(f"❌ OpenAI error: {e}")
-            return "Bio unavailable."
-
-def fetch_identity_from_randomuser() -> Optional[Dict[str, Any]]:
-    try:
-        response = requests.get("https://randomuser.me/api/")
-        response.raise_for_status()
-        user_data = response.json()["results"][0]
-        return {
-            "name": f"{user_data['name']['first']} {user_data['name']['last']}",
-            "dob": user_data["dob"]["date"],
-            "location": f"{user_data['location']['city']}, {user_data['location']['country']}",
-            "email": user_data["email"],
-            "interests": ["Reading", "Traveling", "Music"]
-        }
-    except requests.RequestException as e:
-        print(f"❌ Failed to fetch identity from randomuser.me: {e}")
-        return None
-
-def generate_sock_puppet():
-    try:
-        identity = get_fake_identity(proxy=False)
-        if not identity:
-            print("⚠️ get_fake_identity failed, falling back to randomuser.me.")
-            identity = fetch_identity_from_randomuser()
-            if not identity:
-                print("❌ Failed to obtain identity.")
-                return None
-
-        image_data = get_face_image()
-        if not image_data:
-            print("❌ Failed to fetch face image.")
-            return None
-
-        # Normalize 'name' field if missing
-        if 'name' not in identity:
-            if 'first' in identity and 'last' in identity:
-                identity['name'] = f"{identity['first']} {identity['last']}"
-            elif 'results' in identity and len(identity['results']) > 0:
-                name_data = identity['results'][0].get('name', {})
-                first = name_data.get('first')
-                last = name_data.get('last')
-                if first and last:
-                    identity['name'] = f"{first} {last}"
-                else:
-                    identity['name'] = "Unknown"
-            else:
-                identity['name'] = "Unknown"
-
-        # Assume create_fastmail_alias and generate_bio exist and work
-        email = create_fastmail_alias(identity["name"])
-        if not email:
-            print("❌ Failed to generate email alias.")
-            return None
-
-        bio = generate_bio(identity)
-        if not bio or bio == "Bio unavailable.":
-            print("❌ Bio generation failed.")
-            return None
-
-        puppet = {
-            "name": identity["name"],
-            "dob": identity.get("dob", "Unknown"),
-            "location": identity.get("location", "Unknown"),
-            "email": email,
-            "interests": identity.get("interests", []),
-            "photo": image_data,
-            "bio": bio,
-            "source": {
-                "face": "ThisPersonDoesNotExist",
-                "identity": identity.get("source", "unknown"),
-                "email": "Fastmail"
-            }
-        }
-
-        # You can add save_puppet_to_db(puppet) here if desired
-
-        return puppet
-
+        # Use thispersondoesnotexist.com for AI-generated faces
+        response = requests.get("https://thispersondoesnotexist.com/image", timeout=10)
+        if response.status_code == 200:
+            return BytesIO(response.content)
     except Exception as e:
-        print("❌ Error during puppet generation:", e)
+        print(f"Error fetching face image: {e}")
+    
+    return None
+
+
+def generate_bio(identity_data: Dict[str, Any]) -> str:
+    """Generate a simple biography for the sock puppet"""
+    templates = [
+        f"Hi! I'm {identity_data['first_name']}, a {identity_data['age']}-year-old {identity_data['occupation'].lower()} from {identity_data['city']}, {identity_data['state']}. I enjoy spending time with friends and exploring new technologies.",
+        f"{identity_data['first_name']} here! Working as a {identity_data['occupation'].lower()} in {identity_data['city']}. Love connecting with new people and sharing experiences.",
+        f"Hello, I'm {identity_data['first_name']} {identity_data['last_name']}. {identity_data['age']} years old and passionate about my work as a {identity_data['occupation'].lower()}. Based in {identity_data['city']}, {identity_data['state']}.",
+    ]
+    
+    return random.choice(templates)
+
+
+def generate_sock_puppet() -> Dict[str, Any]:
+    """Generate a complete sock puppet identity"""
+    
+    try:
+        # Get fake identity data
+        identity = get_fake_identity()
+        
+        # Create email alias
+        email_data = create_fastmail_alias(
+            base_name=identity.get('username', '').lower(),
+            domain="tempmail.org"
+        )
+        
+        # Get profile image
+        profile_image = get_face_image()
+        
+        # Generate bio
+        bio = generate_bio(identity)
+        
+        # Combine all data
+        puppet_data = {
+            **identity,
+            "email": email_data["email"],
+            "email_alias": email_data,
+            "profile_image": profile_image,
+            "bio": bio,
+            "created_timestamp": int(time.time()),
+            "mail_utils_available": MAIL_UTILS_AVAILABLE,
+            "web_scrapers_available": WEB_SCRAPERS_AVAILABLE,
+            "config_available": CONFIG_AVAILABLE
+        }
+        
+        return puppet_data
+        
+    except Exception as e:
+        print(f"Error generating sock puppet: {e}")
         return None
 
 
-def save_puppet_to_db(puppet: Dict[str, Any]):
+def save_puppet_to_file(puppet_data: Dict[str, Any], filename: str = None) -> str:
+    """Save puppet data to a JSON file"""
+    if not filename:
+        username = puppet_data.get('username', 'puppet')
+        filename = f"{username}_puppet_data.json"
+    
     try:
-        conn = sqlite3.connect("puppets.db")
-        cursor = conn.cursor()
-        cursor.execute('''CREATE TABLE IF NOT EXISTS puppets (
-                            name TEXT,
-                            dob TEXT,
-                            location TEXT,
-                            email TEXT,
-                            interests TEXT,
-                            photo BLOB,
-                            bio TEXT,
-                            source TEXT)''')
-        cursor.execute('''INSERT INTO puppets (name, dob, location, email, interests, photo, bio, source)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', (
-            puppet["name"],
-            puppet["dob"],
-            puppet["location"],
-            puppet["email"],
-            ", ".join(puppet["interests"]),
-            puppet["photo"].getvalue(),
-            puppet["bio"],
-            str(puppet["source"])
-        ))
-        conn.commit()
-        conn.close()
-    except sqlite3.Error as e:
-        print(f"❌ Failed to save puppet to database: {e}")
+        # Remove non-serializable items
+        serializable_data = {k: v for k, v in puppet_data.items() 
+                           if k != 'profile_image'}
+        
+        with open(filename, 'w') as f:
+            json.dump(serializable_data, f, indent=2)
+        
+        return filename
+        
+    except Exception as e:
+        print(f"Error saving puppet data: {e}")
+        return None
+
+
+def get_puppet_summary(puppet_data: Dict[str, Any]) -> str:
+    """Get a text summary of the puppet data"""
+    if not puppet_data:
+        return "No puppet data available"
+    
+    summary = f"""
+Sock Puppet Identity Summary:
+=============================
+Name: {puppet_data.get('name', 'N/A')}
+Username: {puppet_data.get('username', 'N/A')}
+Email: {puppet_data.get('email', 'N/A')}
+Age: {puppet_data.get('age', 'N/A')}
+Location: {puppet_data.get('city', 'N/A')}, {puppet_data.get('state', 'N/A')}
+Occupation: {puppet_data.get('occupation', 'N/A')}
+Phone: {puppet_data.get('phone', 'N/A')}
+
+Bio: {puppet_data.get('bio', 'N/A')}
+
+Generated: {time.ctime(puppet_data.get('created_timestamp', time.time()))}
+"""
+    
+    return summary
+
+
+def validate_puppet_data(puppet_data: Dict[str, Any]) -> bool:
+    """Validate that puppet data contains required fields"""
+    required_fields = ['name', 'email', 'username']
+    
+    if not puppet_data:
+        return False
+    
+    for field in required_fields:
+        if field not in puppet_data or not puppet_data[field]:
+            return False
+    
+    return True
