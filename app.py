@@ -1,29 +1,115 @@
 import streamlit as st
-from agents.puppet_creator import generate_sock_puppet, save_puppet_to_db
 import base64
+import json
+from io import BytesIO
 
+# Try to import the functions, with error handling
+try:
+    from agents.puppet_creator import generate_sock_puppet, save_puppet_to_file
+except ImportError as e:
+    st.error(f"Error importing puppet creator: {e}")
+    st.stop()
 
-st.set_page_config(page_title="Sock Puppet Generator", layout="centered")
-
-st.title("Sock Puppet Generator")
-
-if puppet:
-    st.success("Sock puppet generated!")
-    st.markdown(f"**Name:** {puppet['name']}")
-    st.markdown(f"**Date of Birth:** {puppet['dob']}")
-    st.markdown(f"**Location:** {puppet['location']}")
-    st.markdown(f"**Email:** {puppet['email']}")
-    st.markdown(f"**Interests:** {', '.join(puppet['interests'])}")
-    st.markdown(f"**Bio:** {puppet['bio']}")
-
-    # Show image if available
-    if puppet.get("photo"):
-        image_bytes = puppet['photo'].getvalue()
-        encoded = base64.b64encode(image_bytes).decode()
-        st.image(f"data:image/jpeg;base64,{encoded}", caption="Sock Puppet Face", use_column_width=True)
-
-    # Save to database here
-    save_puppet_to_db(puppet)
-    st.success("Sock puppet saved to database!")
-else:
-    st.error("Failed to generate a sock puppet. Please check your configuration and try again.")
+def main():
+    st.set_page_config(
+        page_title="Sock Puppet Generator",
+        page_icon="🎭",
+        layout="wide"
+    )
+    
+    st.title("🎭 Sock Puppet Generator")
+    st.markdown("Generate realistic sock puppet identities for authorized OSINT investigations")
+    
+    st.warning("⚠️ For ethical and authorized use only (e.g., security research, threat intelligence)")
+    
+    # Sidebar for configuration
+    with st.sidebar:
+        st.header("Configuration")
+        
+        # Generation options
+        st.subheader("Generation Options")
+        use_ai_image = st.checkbox("Generate AI Face Image", value=True)
+        use_detailed_bio = st.checkbox("Generate Detailed Bio", value=True)
+        
+        # Domain selection for email
+        email_domain = st.selectbox(
+            "Email Domain",
+            ["tempmail.org", "guerrillamail.com", "10minutemail.com", "mailinator.com"]
+        )
+    
+    # Main content area
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.header("Generate New Identity")
+        
+        if st.button("🎲 Generate Sock Puppet", type="primary"):
+            with st.spinner("Generating sock puppet identity..."):
+                try:
+                    # Generate the sock puppet
+                    puppet_data = generate_sock_puppet()
+                    
+                    if puppet_data:
+                        # Store in session state
+                        st.session_state.current_puppet = puppet_data
+                        st.success("✅ Sock puppet generated successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to generate sock puppet")
+                        
+                except Exception as e:
+                    st.error(f"Error generating sock puppet: {str(e)}")
+    
+    with col2:
+        st.header("Export Options")
+        
+        # Only show export options if we have a puppet
+        if 'current_puppet' in st.session_state:
+            puppet = st.session_state.current_puppet
+            
+            if st.button("📄 Export as JSON"):
+                try:
+                    # Create JSON data (excluding non-serializable items)
+                    export_data = {k: v for k, v in puppet.items() if k != 'profile_image'}
+                    json_str = json.dumps(export_data, indent=2)
+                    
+                    st.download_button(
+                        label="💾 Download JSON",
+                        data=json_str,
+                        file_name=f"{puppet.get('username', 'puppet')}_data.json",
+                        mime="application/json"
+                    )
+                except Exception as e:
+                    st.error(f"Error creating JSON export: {str(e)}")
+        else:
+            st.info("Generate a sock puppet first to see export options")
+    
+    # Display current puppet if available
+    if 'current_puppet' in st.session_state:
+        puppet = st.session_state.current_puppet
+        
+        st.header("Generated Identity")
+        
+        # Create columns for display
+        display_col1, display_col2, display_col3 = st.columns([1, 1, 1])
+        
+        with display_col1:
+            st.subheader("Personal Information")
+            st.write(f"**Name:** {puppet.get('name', 'N/A')}")
+            st.write(f"**Username:** {puppet.get('username', 'N/A')}")
+            st.write(f"**Email:** {puppet.get('email', 'N/A')}")
+            st.write(f"**Phone:** {puppet.get('phone', 'N/A')}")
+            st.write(f"**Age:** {puppet.get('age', 'N/A')}")
+            st.write(f"**Gender:** {puppet.get('gender', 'N/A')}")
+        
+        with display_col2:
+            st.subheader("Location & Background")
+            st.write(f"**Address:** {puppet.get('address', 'N/A')}")
+            st.write(f"**City:** {puppet.get('city', 'N/A')}")
+            st.write(f"**State:** {puppet.get('state', 'N/A')}")
+            st.write(f"**ZIP:** {puppet.get('zip_code', 'N/A')}")
+            st.write(f"**Country:** {puppet.get('country', 'N/A')}")
+            st.write(f"**Occupation:** {puppet.get('occupation', 'N/A')}")
+        
+        with display_col3:
+            st.subheader("Profile Image
