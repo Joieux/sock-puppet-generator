@@ -62,18 +62,23 @@ def generate_bio(identity: Dict[str, Any]) -> str:
 
 
 def generate_sock_puppet():
-    try:
-        print("🔍 Generating fake identity...")
-        identity = get_fake_identity(proxy=False)
-        print("✅ Identity generated:", identity)
+    identity = get_fake_identity(proxy=False)
+    # Normalize identity dict to always have 'name'
+    if 'name' not in identity:
+        # maybe identity['name'] = identity.get('full_name') or combine first/last names
+        # example for randomuser.me fallback:
+        if 'name' not in identity and 'first' in identity and 'last' in identity:
+            identity['name'] = f"{identity['first']} {identity['last']}"
+        elif 'name' not in identity and 'name' in identity.get('results', [{}])[0]:
+            name_data = identity['results'][0]['name']
+            identity['name'] = f"{name_data['first']} {name_data['last']}"
 
-        # You can add more puppet logic here if needed
-        puppet = {
-            "identity": identity,
-            "status": "created"
-        }
+    puppet = {
+        **identity,
+        # other puppet info here...
+    }
+    return puppet
 
-        return puppet
 
     except Exception as e:
         print("❌ Error during puppet generation:", e)
