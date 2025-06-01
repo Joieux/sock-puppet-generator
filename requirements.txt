@@ -1,24 +1,14 @@
-# Core dependencies
-requests>=2.28.0
-streamlit>=1.30.0
-
-# OpenAI API support
-openai>=1.0.0
-
-# Optional: LLM interaction via local API
-# (only include if you're using a local LLM endpoint)
-# flask>=2.2.0
-
-# Database (SQLite is built-in, so no extra lib needed)
-
-# Testing
-pytest>=7.0.0
-unittest2; python_version < '3.5'  # only for older Python versions
-
-# Linting/formatting (optional but recommended)
-black>=23.0.0
-flake8>=6.0.0
-
-# Typing
-mypy>=1.0.0
-
+streamlit
+requests
+openai
+pandas
+numpy
+pillow
+python-dotenv
+beautifulsoup4
+lxml
+selenium
+fake-useragent
+pydantic
+typing-extensions
+requests[socks]
