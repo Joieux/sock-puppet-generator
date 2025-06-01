@@ -5,7 +5,29 @@ from io import BytesIO
 
 # Try to import the functions, with error handling
 try:
-    from agents.puppet_creator import generate_sock_puppet, save_puppet_to_file
+    from agents.puppet_creator import generate_sock_puppet
+    # Try to import save function, but don't fail if it doesn't exist
+    try:
+        from agents.puppet_creator import save_puppet_to_file
+        SAVE_FUNCTION_AVAILABLE = True
+    except ImportError:
+        SAVE_FUNCTION_AVAILABLE = False
+        # Create a fallback save function
+        def save_puppet_to_file(puppet_data, filename=None):
+            if not filename:
+                username = puppet_data.get('username', 'puppet')
+                filename = f"{username}_puppet_data.json"
+            
+            import json
+            # Remove non-serializable items
+            serializable_data = {k: v for k, v in puppet_data.items() 
+                               if k != 'profile_image'}
+            
+            with open(filename, 'w') as f:
+                json.dump(serializable_data, f, indent=2)
+            
+            return filename
+            
 except ImportError as e:
     st.error(f"Error importing puppet creator: {e}")
     st.stop()
