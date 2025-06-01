@@ -62,27 +62,35 @@ def generate_bio(identity: Dict[str, Any]) -> str:
 
 
 def generate_sock_puppet():
-    identity = get_fake_identity(proxy=False)
-    # Normalize identity dict to always have 'name'
-    if 'name' not in identity:
-        # maybe identity['name'] = identity.get('full_name') or combine first/last names
-        # example for randomuser.me fallback:
-        if 'name' not in identity and 'first' in identity and 'last' in identity:
-            identity['name'] = f"{identity['first']} {identity['last']}"
-        elif 'name' not in identity and 'name' in identity.get('results', [{}])[0]:
-            name_data = identity['results'][0]['name']
-            identity['name'] = f"{name_data['first']} {name_data['last']}"
+    try:
+        identity = get_fake_identity(proxy=False)
 
-    puppet = {
-        **identity,
-        # other puppet info here...
-    }
-    return puppet
+        # Normalize identity dict to always have 'name'
+        if 'name' not in identity:
+            # If identity has 'first' and 'last', combine them
+            if 'first' in identity and 'last' in identity:
+                identity['name'] = f"{identity['first']} {identity['last']}"
+            # If identity has a 'results' list like from randomuser.me
+            elif 'results' in identity and len(identity['results']) > 0:
+                name_data = identity['results'][0].get('name', {})
+                first = name_data.get('first')
+                last = name_data.get('last')
+                if first and last:
+                    identity['name'] = f"{first} {last}"
+                else:
+                    identity['name'] = "Unknown"
+            else:
+                identity['name'] = "Unknown"
 
+        puppet = {
+            **identity,
+            # add other puppet info here if needed
+        }
+        return puppet
 
     except Exception as e:
         print("❌ Error during puppet generation:", e)
-        raise  # Re-raise so Streamlit can catch it and show the error
+        raise
 
     image_data = get_face_image()
     if not image_data:
