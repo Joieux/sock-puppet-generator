@@ -112,4 +112,37 @@ def main():
             st.write(f"**Occupation:** {puppet.get('occupation', 'N/A')}")
         
         with display_col3:
-            st.subheader("Profile Image
+            st.subheader("Profile Image")
+            if puppet.get('profile_image'):
+                try:
+                    # Display the image if available
+                    st.image(puppet['profile_image'], caption="Generated Profile Image", width=200)
+                except Exception as e:
+                    st.write("Profile image not available")
+            else:
+                st.write("No profile image generated")
+        
+        # Bio section
+        if puppet.get('bio'):
+            st.subheader("Biography")
+            st.write(puppet['bio'])
+        
+        # Technical details
+        with st.expander("Technical Details"):
+            st.json({
+                "Email Alias Info": puppet.get('email_alias', {}),
+                "Generation Timestamp": puppet.get('created_timestamp', 'N/A'),
+                "Mail Utils Available": puppet.get('mail_utils_available', False)
+            })
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center'>
+        <p><small>This tool is for authorized security research and OSINT investigations only.</small></p>
+        <p><small>Never use for impersonation, fraud, or violations of Terms of Service.</small></p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
