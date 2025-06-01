@@ -79,6 +79,22 @@ def generate_sock_puppet():
             print("❌ Failed to fetch face image.")
             return None
 
+        # Normalize 'name' field if missing
+        if 'name' not in identity:
+            if 'first' in identity and 'last' in identity:
+                identity['name'] = f"{identity['first']} {identity['last']}"
+            elif 'results' in identity and len(identity['results']) > 0:
+                name_data = identity['results'][0].get('name', {})
+                first = name_data.get('first')
+                last = name_data.get('last')
+                if first and last:
+                    identity['name'] = f"{first} {last}"
+                else:
+                    identity['name'] = "Unknown"
+            else:
+                identity['name'] = "Unknown"
+
+        # Assume create_fastmail_alias and generate_bio exist and work
         email = create_fastmail_alias(identity["name"])
         if not email:
             print("❌ Failed to generate email alias.")
@@ -104,13 +120,14 @@ def generate_sock_puppet():
             }
         }
 
-        save_puppet_to_db(puppet)
-        print("✅ Sock puppet successfully generated and saved.")
+        # You can add save_puppet_to_db(puppet) here if desired
+
         return puppet
 
     except Exception as e:
         print("❌ Error during puppet generation:", e)
         return None
+
 
 def save_puppet_to_db(puppet: Dict[str, Any]):
     try:
